@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ship Detection</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 50px;
+            background-color: #f0f0f0;
+            color: #333;
+        }
+        h1 {
+            text-align: center;
+            color: #4CAF50;
+        }
+        #container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #fff;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            border-radius: 8px;
+        }
+        #imageInput {
+            display: block;
+            margin: 20px auto;
+        }
+        button {
+            display: block;
+            margin: 20px auto;
+            padding: 10px 20px;
+            font-size: 16px;
+            color: #fff;
+            background-color: #4CAF50;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        #result {
+            margin-top: 20px;
+            position: relative;
+            overflow: auto;
+            white-space: nowrap;
+        }
+        canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+        #uploadedImage {
+            display: block;
+            margin: 0 auto;
+            border-radius: 8px;
+        }
+        #message {
+            margin-top: 20px;
+            font-size: 18px;
+            font-weight: bold;
+            text-align: center;
+            color: #d9534f;
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <h1>Ship Detection in Satellite Images</h1>
+        <input type="file" id="imageInput" accept="image/*">
+        <button onclick="uploadImage()">Upload and Detect</button>
+        <div id="result">
+            <img id="uploadedImage" />
+            <canvas id="canvas"></canvas>
+        </div>
+        <div id="message"></div>
+    </div>
+
+    <script>
+        async function uploadImage() {
+            const input = document.getElementById('imageInput');
+            if (input.files.length === 0) {
+                alert('Please select an image.');
+                return;
+            }
+            const file = input.files[0];
+            const formData = new FormData();
+            formData.append('image', file);
+
+            const response = await fetch('http://127.0.0.1:5000/detect', {
+                method: 'POST',
+                body: formData
+            });
+
+            const result = await response.json();
+            displayResult(file, result);
+        }
+
+        function displayResult(file, result) {
+            const img = document.getElementById('uploadedImage');
+            const canvas = document.getElementById('canvas');
+            const ctx = canvas.getContext('2d');
+            const messageDiv = document.getElementById('message');
+
+            // Load the image
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                img.src = event.target.result;
+                img.onload = function() {
+                    // Set canvas size to image size
+                    canvas.width = img.naturalWidth;
+                    canvas.height = img.naturalHeight;
+
+                    // Draw the image on the canvas
+                    ctx.clearRect(0, 0, canvas.width, canvas.height); // Clear any previous drawings
+                    ctx.drawImage(img, 0, 0);
+
+                    // Clear previous message
+                    messageDiv.textContent = '';
+                    messageDiv.style.color = '#d9534f'; // Default color for no detection
+
+                    if (result.length > 0) {
+                        // Draw the bounding boxes
+                        result.forEach(detection => {
+                            const [x1, y1, x2, y2] = detection.bbox;
+
+                            ctx.beginPath();
+                            ctx.rect(x1, y1, x2 - x1, y2 - y1);
+                            ctx.lineWidth = 2;
+                            ctx.strokeStyle = 'red';
+                            ctx.fillStyle = 'red';
+                            ctx.stroke();
+
+                            // Draw the score
+                            ctx.font = '16px Arial';
+                            ctx.fillText(`Score: ${(detection.score * 100).toFixed(2)}%`, x1, y1 > 10 ? y1 - 5 : 10);
+                        });
+                        messageDiv.textContent = 'Ship detected!';
+                        messageDiv.style.color = '#4CAF50'; // Change color for detection
+                    } else {
+                        messageDiv.textContent = 'No ship detected.';
+                    }
+                };
+            };
+            reader.readAsDataURL(file);
+        }
+    </script>
+</body>
+</html>
